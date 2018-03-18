@@ -1,0 +1,369 @@
+> rm(list=ls())
+> constrained.kmeans <- function(p,a,std,k,b,imax,seed,details){
++ # Bob Agnew (raagnew1@gmail.com, www.raagnew.com)
++ # Constrained k-means clustering using lp.transport function
++ # in R package lpSolve
++ # Implements Bradley-Bennett-Demiriz algorithm
++ # p = population vector associated with observations
++ # Population for each observation must be assigned to same cluster
++ # For a normal clustering problem, p is a vector of ones
++ # a = numeric attribute matrix with a row for each observation
++ # std = TRUE if attributes are to be standardized across observations,
++ # else FALSE
++ # k = specified number of k-means clusters
++ # b = vector of integer lower bounds for population clusters
++ # If all populations are one, then these are exact lower bounds
++ # for cluster sizes
++ # If populations vary, then these are target lower bounds for
++ # cluster populations
++ # imax = maximum number of iterations in kmeans loop
++ # seed = random number seed for initial cluster assignments
++ # details = TRUE for printing of iteration details, else FALSE
++ m <- dim(a)[1] # Number of observations
++ n <- dim(a)[2] # Number of attributes
++ if (std) {a <- apply(a,2,function(u) (u-mean(u))/sd(u))}
++ set.seed(seed,kind=NULL,normal.kind=NULL) # Set random number seed
++ c <- sample.int(k,m,replace=TRUE,prob=NULL) # Initial cluster vector
++ require(lpSolve) # Load R linear programming package
++ num <- iter <- 1
++ while (iter <= imax & num > 0){
++ cost <- matrix(0,nrow=m,ncol=k)
++ for (j in 1:n){
++ cost <- cost + outer(a[,j],tapply(p*a[,j],c,sum)/tapply(p,c,sum),"-")^2}
++ # Solution of transportation linear program
++ trans <- lp.transport(cost,"min",rep("=",m),p,rep(">=",k),b)
++ # Generate new clusters
++ # For split allocation, assign to maximal cluster
++ c1 <- apply(trans$solution,1,which.max)
++ num <- sum(c1!=c)
++ if (details){
++ print(noquote("Iteration Number"))
++ print(iter)
++ print(trans)
++ print(noquote("Number of split allocations"))
++ print(sum(apply(trans$solution,1,max) < p))
++ print(noquote("Number of revised cluster elements"))
++ print(num)}
++ c <- c1 #Clusters revised
++ iter <- iter + 1
++ }
++ means <- NULL
++ for (j in 1:n){
++ means <- cbind(means,tapply(p*a[,j],c,sum)/tapply(p,c,sum))}
++ cost <- matrix(0,nrow=m,ncol=k)
++ for (j in 1:n){
++ cost <- cost + outer(a[,j],tapply(p*a[,j],c,sum)/tapply(p,c,sum),"-")^2}
++ cost <- matrix(p,nrow=m,ncol=k)*cost
++ ss <- sum(cost*outer(c,1:k,"=="))
++ result <- list(iter-1,num==0,c,tapply(p,c,sum),means,ss)
++ names(result) <- c("iter","converge","cluster","population","centers",
++ "tot.withinss")
++ return(result)}
+> 
+> date() # Time
+[1] "Tue Feb 27 21:58:56 2018"
+> # Read in Illinois census block group data
+> # Downloaded from https://www.census.gov/geo/reference/centersofpop.html
+> data <- read.table("c:/Clustering/CenPop2010_Mean_BG17.txt",sep=",",header=TRUE)
+> # Remove dummy block groups with no population 
+> data <- data[as.vector(data[,5]) > 0,]
+> p <- as.vector(data[,5]) #Census block group populations
+> # Number of census block groups with positive population
+> length(p)
+[1] 9676
+> # Block group population range
+> range(p)
+[1]     1 15453
+> # Block group population mean
+> mean(p)
+[1] 1326.026
+> # Block group population median
+> median(p)
+[1] 1164.5
+> a <- as.matrix(data[,c(7,6)]) # Block group longitudes and latitudes
+> k <- 18 # Number of clusters = number of congressional districts
+> 
+> # Constrained k-means clustering applied to IL congressional districting
+> # Target population lower bounds set tightly at average rounded down
+> ckm <- constrained.kmeans(p,a,FALSE,k,rep(floor(sum(p)/k),k),100,23,TRUE)
+Loading required package: lpSolve
+[1] Iteration Number
+[1] 1
+Success: the objective function is 24741560 
+[1] Number of split allocations
+[1] 17
+[1] Number of revised cluster elements
+[1] 9076
+[1] Iteration Number
+[1] 2
+Success: the objective function is 1858946 
+[1] Number of split allocations
+[1] 17
+[1] Number of revised cluster elements
+[1] 1582
+[1] Iteration Number
+[1] 3
+Success: the objective function is 1759805 
+[1] Number of split allocations
+[1] 17
+[1] Number of revised cluster elements
+[1] 553
+[1] Iteration Number
+[1] 4
+Success: the objective function is 1741589 
+[1] Number of split allocations
+[1] 17
+[1] Number of revised cluster elements
+[1] 355
+[1] Iteration Number
+[1] 5
+Success: the objective function is 1732995 
+[1] Number of split allocations
+[1] 17
+[1] Number of revised cluster elements
+[1] 249
+[1] Iteration Number
+[1] 6
+Success: the objective function is 1728659 
+[1] Number of split allocations
+[1] 17
+[1] Number of revised cluster elements
+[1] 181
+[1] Iteration Number
+[1] 7
+Success: the objective function is 1726302 
+[1] Number of split allocations
+[1] 17
+[1] Number of revised cluster elements
+[1] 130
+[1] Iteration Number
+[1] 8
+Success: the objective function is 1725515 
+[1] Number of split allocations
+[1] 17
+[1] Number of revised cluster elements
+[1] 78
+[1] Iteration Number
+[1] 9
+Success: the objective function is 1724884 
+[1] Number of split allocations
+[1] 17
+[1] Number of revised cluster elements
+[1] 82
+[1] Iteration Number
+[1] 10
+Success: the objective function is 1724421 
+[1] Number of split allocations
+[1] 17
+[1] Number of revised cluster elements
+[1] 45
+[1] Iteration Number
+[1] 11
+Success: the objective function is 1724234 
+[1] Number of split allocations
+[1] 17
+[1] Number of revised cluster elements
+[1] 40
+[1] Iteration Number
+[1] 12
+Success: the objective function is 1724137 
+[1] Number of split allocations
+[1] 17
+[1] Number of revised cluster elements
+[1] 29
+[1] Iteration Number
+[1] 13
+Success: the objective function is 1724090 
+[1] Number of split allocations
+[1] 17
+[1] Number of revised cluster elements
+[1] 27
+[1] Iteration Number
+[1] 14
+Success: the objective function is 1724063 
+[1] Number of split allocations
+[1] 17
+[1] Number of revised cluster elements
+[1] 28
+[1] Iteration Number
+[1] 15
+Success: the objective function is 1723919 
+[1] Number of split allocations
+[1] 17
+[1] Number of revised cluster elements
+[1] 32
+[1] Iteration Number
+[1] 16
+Success: the objective function is 1723835 
+[1] Number of split allocations
+[1] 17
+[1] Number of revised cluster elements
+[1] 16
+[1] Iteration Number
+[1] 17
+Success: the objective function is 1723793 
+[1] Number of split allocations
+[1] 17
+[1] Number of revised cluster elements
+[1] 15
+[1] Iteration Number
+[1] 18
+Success: the objective function is 1723745 
+[1] Number of split allocations
+[1] 17
+[1] Number of revised cluster elements
+[1] 17
+[1] Iteration Number
+[1] 19
+Success: the objective function is 1723709 
+[1] Number of split allocations
+[1] 17
+[1] Number of revised cluster elements
+[1] 10
+[1] Iteration Number
+[1] 20
+Success: the objective function is 1723684 
+[1] Number of split allocations
+[1] 17
+[1] Number of revised cluster elements
+[1] 9
+[1] Iteration Number
+[1] 21
+Success: the objective function is 1723638 
+[1] Number of split allocations
+[1] 17
+[1] Number of revised cluster elements
+[1] 19
+[1] Iteration Number
+[1] 22
+Success: the objective function is 1723587 
+[1] Number of split allocations
+[1] 17
+[1] Number of revised cluster elements
+[1] 18
+[1] Iteration Number
+[1] 23
+Success: the objective function is 1723568 
+[1] Number of split allocations
+[1] 17
+[1] Number of revised cluster elements
+[1] 16
+[1] Iteration Number
+[1] 24
+Success: the objective function is 1723562 
+[1] Number of split allocations
+[1] 17
+[1] Number of revised cluster elements
+[1] 12
+[1] Iteration Number
+[1] 25
+Success: the objective function is 1723560 
+[1] Number of split allocations
+[1] 17
+[1] Number of revised cluster elements
+[1] 10
+[1] Iteration Number
+[1] 26
+Success: the objective function is 1723558 
+[1] Number of split allocations
+[1] 17
+[1] Number of revised cluster elements
+[1] 8
+[1] Iteration Number
+[1] 27
+Success: the objective function is 1723557 
+[1] Number of split allocations
+[1] 17
+[1] Number of revised cluster elements
+[1] 7
+[1] Iteration Number
+[1] 28
+Success: the objective function is 1723556 
+[1] Number of split allocations
+[1] 17
+[1] Number of revised cluster elements
+[1] 9
+[1] Iteration Number
+[1] 29
+Success: the objective function is 1723555 
+[1] Number of split allocations
+[1] 17
+[1] Number of revised cluster elements
+[1] 2
+[1] Iteration Number
+[1] 30
+Success: the objective function is 1723555 
+[1] Number of split allocations
+[1] 17
+[1] Number of revised cluster elements
+[1] 7
+[1] Iteration Number
+[1] 31
+Success: the objective function is 1723555 
+[1] Number of split allocations
+[1] 17
+[1] Number of revised cluster elements
+[1] 7
+[1] Iteration Number
+[1] 32
+Success: the objective function is 1723555 
+[1] Number of split allocations
+[1] 17
+[1] Number of revised cluster elements
+[1] 5
+[1] Iteration Number
+[1] 33
+Success: the objective function is 1723554 
+[1] Number of split allocations
+[1] 17
+[1] Number of revised cluster elements
+[1] 0
+> ckm$iter
+[1] 33
+> ckm$converge
+[1] TRUE
+> ckm$tot.withinss
+[1] 1724308
+> ckm$population # Approximately equal
+     1      2      3      4      5      6      7      8      9     10     11     12     13     14     15     16     17     18 
+713156 713297 712594 712455 712157 712555 712513 713142 713051 713385 712721 712015 712859 712554 712377 713611 713543 712647 
+> MEAN_LONGITUDE <- ckm$centers[,1]
+> MEAN_LATITUDE <- ckm$centers[,2]
+> c <- ckm$cluster
+> 
+> # Geoplot of IL census block groups and cluster centroids
+> pdf("c:/Clustering/IL_census_block_group_centroids.pdf")
+> plot(a[,1],a[,2],col="black",pch=19,cex=.25,asp=1.5,xlim=c(-94,-84),ylim=c(36,43),xlab="LONGITUDE",ylab="LATITUDE",
++ main="ILLINOIS CENSUS BLOCK GROUPS & CLUSTER CENTROIDS")
+> points(MEAN_LONGITUDE,MEAN_LATITUDE,col="red",pch=19,cex=.75)
+> dev.off()
+null device 
+          1 
+> 
+> # Geoplot of IL census block group clusters
+> pdf("c:/Clustering/IL_census_block_group_clusters.pdf")
+> plot(a[c==1,1],a[c==1,2],asp=1.5,cex=.25,col="black",pch=19,xlim=c(-94,-84),ylim=c(36,43),xlab="LONGITUDE",ylab="LATITUDE",
++ main="ILLINOIS CENSUS BLOCK GROUP CLUSTERS")
+> points(a[c==2,1],a[c==2,2],col="dimgray",pch=19,cex=.25)
+> points(a[c==3,1],a[c==3,2],col="gray70",pch=19,cex=.25)
+> points(a[c==4,1],a[c==4,2],col="red",pch=19,cex=.25)
+> points(a[c==5,1],a[c==5,2],col="darkred",pch=19,cex=.25)
+> points(a[c==6,1],a[c==6,2],col="darkorange1",pch=19,cex=.25)
+> points(a[c==7,1],a[c==7,2],col="purple1",pch=19,cex=.25)
+> points(a[c==8,1],a[c==8,2],col="blue",pch=19,cex=.25)
+> points(a[c==9,1],a[c==9,2],col="aquamarine1",pch=19,cex=.25)
+> points(a[c==10,1],a[c==10,2],col="dodgerblue1",pch=19,cex=.25)
+> points(a[c==11,1],a[c==11,2],col="cyan1",pch=19,cex=.25)
+> points(a[c==12,1],a[c==12,2],col="deeppink1",pch=19,cex=.25)
+> points(a[c==13,1],a[c==13,2],col="darkgoldenrod1",pch=19,cex=.25)
+> points(a[c==14,1],a[c==14,2],col="green1",pch=19,cex=.25)
+> points(a[c==15,1],a[c==15,2],col="darkgreen",pch=19,cex=.25)
+> points(a[c==16,1],a[c==16,2],col="maroon1",pch=19,cex=.25)
+> points(a[c==17,1],a[c==17,2],col="olivedrab1",pch=19,cex=.25)
+> points(a[c==18,1],a[c==18,2],col="darksalmon",pch=19,cex=.25)
+> dev.off()
+null device 
+          1 
+> date() # Time
+[1] "Tue Feb 27 22:23:19 2018"
+> 
